@@ -1,0 +1,74 @@
+---
+#   Copyright Red Hat, Inc. All Rights Reserved.
+#
+#   Licensed under the Apache License, Version 2.0 (the "License"); you may
+#   not use this file except in compliance with the License. You may obtain
+#   a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+#   Unless required by applicable law or agreed to in writing, software
+#   distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#   WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#   License for the specific language governing permissions and limitations
+#   under the License.
+#
+
+- name: Setup docker repository
+  copy:
+    src: "docker.repo"
+    dest: "/etc/yum.repos.d/docker.repo"
+
+- name: Install docker and required packages
+  package:
+    name: "{{ item }}"
+    state: "installed"
+  with_items:
+    - docker-engine
+    - docker-engine-selinux
+    - git
+    - python-setuptools
+
+- name: Create docker group
+  group:
+    name: "docker"
+    state: "present"
+
+- name: Add root to the docker group
+  user:
+    name: "root"
+    state: "present"
+    append: "yes"
+    groups: "docker"
+
+- name: Ensure docker is started and enabled to start at boot
+  service:
+    name: "docker"
+    enabled: "yes"
+    state: "started"
+
+- name: Install pip
+  command: "easy_install pip"
+
+- name: Install docker-compose
+  pip:
+    name: "docker-compose"
+    state: "present"
+
+# https://github.com/docker/compose/issues/3428#issuecomment-229640951
+- name: Upgrade backports.ssl_match_hostname
+  pip:
+    name: "backports.ssl_match_hostname"
+    state: "latest"
+
+- name: Retrieve Cachet Docker-compose source
+  git:
+    repo: "{{ cachet_docker_repository }}"
+    dest: "{{ cachet_docker_path }}"
+    version: "{{ cachet_docker_version }}"
+
+- name: Build and start Cachet docker-compose
+  docker_service:
+    project_src: "{{ cachet_docker_path }}"
+    build: "yes"
+    state: "present"
